@@ -40,25 +40,12 @@ for x in tile_list:
 
 for i in np.arange(0,len(time_list)-1):
 		for j in name_tile:
-			out_tile = j
-			in_tile = name_tile.copy()
+			out_tile =['month','day'] + [j]
+			in_tile = ['month','day'] + name_tile.copy()
 			in_tile.remove(j)
-			print('-------------')
-			print(out_tile)
-			print(in_tile)
-			print(dict_dftime[time_list[i]])
-			print(dict_dftime[time_list[i+1]])
-			print('-------------')
-			exit(1)
-
-'''
-for i in tile_list_out:
-	df_tile = group_output.get_group(i)
-	df_tile = df_tile.drop(['tileX', 'tileY'], axis=1)
-	tile_name = str(i[0])+'_'+str(i[1])
-	df_tile = df_tile.rename(columns={'P':tile_name}, inplace=False)
-	df_out = pd.merge(df_out,df_tile, how='outer', on=['month','day'])
-
-df_in.to_csv('data/input_matrix.csv', sep='\t', index=False)
-df_out.to_csv('data/output_matrix.csv', sep='\t', index=False)
-'''
+			dfw_in  = dict_dftime[time_list[i]][in_tile]
+			dfw_out = dict_dftime[time_list[i+1]][out_tile]
+			df_matrix = pd.merge(dfw_in, dfw_out, how='outer', on=['month','day'])
+			df_matrix = df_matrix.dropna().drop(['month', 'day'], axis=1)
+			new_recarray = df_matrix.to_records()
+			new_recarray.tofile('../output/'+str(time_list[i])+'_'+str(j)+'.npy')

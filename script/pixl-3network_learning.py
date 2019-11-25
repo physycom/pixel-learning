@@ -1,52 +1,61 @@
 import csv
 import random
 import sys
-import numpy as np 
-import pandas as pd 
-import seaborn as sns
-import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from os import listdir
+from os.path import isfile, join
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from pandas.plotting import scatter_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+
 
 # Fix random seed for reproducibility
 my_seed = 42
 random.seed(my_seed)
 np.random.seed(my_seed)
 
-sns.set()
 np.set_printoptions(precision=3)
+pd.set_option('precision', 3)
 
-if len(sys.argv) < 3:
-	print("Usage :", sys.argv[0], "path/to/csv/input", "path/to/csv/output")
+if len(sys.argv) < 2:
+	print("Usage :", sys.argv[0], "path/to/npy/dir")
 	exit(1)
 
-file_input  = sys.argv[1]
-file_output = sys.argv[2]
+dir_path  = sys.argv[1]
+file_list = [f for f in listdir(dir_path) if (isfile(join(dir_path, f)) and f.endswith('.npy'))]
 
-df_in  = pd.read_csv(file_input, sep='\t')
-df_out = pd.read_csv(file_output, sep='\t')
+weight_matrix = pd.DataFrame(columns=['time', 'tile_out', 'tile_in', 'intercept', 'slope'])
 
-df = pd.merge(df_in, df_out, how='inner', on=['month', 'day'])
-X = df[['140043_93843_x', '140053_93842_x']]
-y = df['140058_93850_y']
+with open('metadata.csv', 'w') as out:
+  for i in file_list:
+    records = np.load(dir_path+'/'+i)
+    df = pd.DataFrame(records).drop('index', axis=1)
+    df = df.sample(frac=1).reset_index(drop=True)
 
-### Rescale data between 0 and 1 
-pd.set_option('precision', 3)             
-#scaler = MinMaxScaler(feature_range=(0, 1))
-#X = scaler.fit_transform(X)
-#y = scaler.fit_transform(y)
+    item = i.split('.')[0].split('_')
+    time = item[0]
 
-####################### LINEAR REGRESSION ############################
-from sklearn.linear_model import LinearRegression
-model = LinearRegression()
-model.fit(X,y)
-r_sq = model.score(X,y)
-print('coefficient of determination: ', r_sq)
-print('intercept: ', model.intercept_)
-print('slope: ', model.coef_)
-y_pred = model.predict(X)
+    column_name =df.columns.to_list()
+    y_name = column_name[-1]
+    X_name = column_name[:-1]
 
-df_y = pd.DataFrame(y)
-df_y['y_pred'] =y_pred
-print(df_y)
+    X = df[X_name]
+    y = df[y_name]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+
+    ####################### LINEAR REGRESSION ############################
+    model = LinearRegression()
+    model.fit(X_train,y_train)
+    r_sq = model.score(X_test,y_test)
+    out.write(i+','+str(r_sq)+'\n')
+    weight_matrix = weight_matrix.append(pd.DataFrame([[int(time), y_name, X_name, model.intercept_, model.coef_]],
+                    columns=['time', 'tile_out', 'tile_in', 'intercept', 'slope']))
+out.close
+
+weight_matrix = weight_matrix.sort_values(by='time')
+weight_matrix.to_json('weight_matrix.json',orient='records')
+
 

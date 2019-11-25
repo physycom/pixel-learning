@@ -48,4 +48,4 @@ for i in np.arange(0,len(time_list)-1):
 			df_matrix = pd.merge(dfw_in, dfw_out, how='outer', on=['month','day'])
 			df_matrix = df_matrix.dropna().drop(['month', 'day'], axis=1)
 			new_recarray = df_matrix.to_records()
-			new_recarray.tofile('../output/'+str(time_list[i])+'_'+str(j)+'.npy')
+			np.save('../output/'+str(time_list[i])+'_'+str(j)+'.npy', new_recarray)

@@ -44,7 +44,7 @@ for j in time_list:
     df_tile = group_df.get_group(i)
     #df_tile = df_tile[df_tile.holiday == 0]
     df_tile = df_tile.drop(['TileX', 'TileY', 'IdHour','Timestamp'], axis=1)
-    tile_name = str(i[0])+'_'+str(i[1])
+    tile_name = str(i[0])+'-'+str(i[1])
     df_tile = df_tile.rename(columns={'P':tile_name}, inplace=False)
     df_in = pd.merge(df_in,df_tile, how='outer', on=['Date'])
 
@@ -52,8 +52,10 @@ for j in time_list:
 
 name_tile = []
 for x in tile_list:
-  tile_name = str(x[0])+'_'+str(x[1])
+  tile_name = str(x[0])+'-'+str(x[1])
   name_tile.append(tile_name)
+
+count = 0
 
 for i in np.arange(0,len(time_list)-1):
   for j in name_tile:
@@ -66,3 +68,7 @@ for i in np.arange(0,len(time_list)-1):
     df_matrix = df_matrix.dropna().drop(['Date'], axis=1)
     new_recarray = df_matrix.to_records()
     np.save('{}{:>04}_{}.npy'.format(wdir, time_list[i], j), new_recarray)
+    count += 1
+    if count%500 == 0:
+      print('number model: ', str(count))
+

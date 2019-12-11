@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+from datetime import datetime
 
 # parse command line
 if len(sys.argv) < 2:
@@ -15,6 +16,7 @@ if len(sys.argv) < 2:
   exit(1)
 input_file = sys.argv[1]
 print('[PL-2-prepro] Pre-processing : {}'.format(input_file))
+tnow = datetime.now()
 
 # setup folder
 wdir = '../output/'
@@ -42,7 +44,6 @@ for j in time_list:
   cnt = 0
   for i in tile_list:
     df_tile = group_df.get_group(i)
-    #df_tile = df_tile[df_tile.holiday == 0]
     df_tile = df_tile.drop(['TileX', 'TileY', 'IdHour','Timestamp'], axis=1)
     tile_name = str(i[0])+'-'+str(i[1])
     df_tile = df_tile.rename(columns={'P':tile_name}, inplace=False)
@@ -57,18 +58,22 @@ for x in tile_list:
 
 count = 0
 
-for i in np.arange(0,len(time_list)-1):
-  for j in name_tile:
-    out_tile =['Date'] + [j]
-    in_tile = ['Date'] + name_tile.copy()
-    in_tile.remove(j)
-    dfw_in  = dict_dftime[time_list[i]][in_tile]
-    dfw_out = dict_dftime[time_list[i+1]][out_tile]
-    df_matrix = pd.merge(dfw_in, dfw_out, how='outer', on=['Date'])
-    df_matrix = df_matrix.dropna().drop(['Date'], axis=1)
-    new_recarray = df_matrix.to_records()
-    np.save('{}{:>04}_{}.npy'.format(wdir, time_list[i], j), new_recarray)
-    count += 1
-    if count%500 == 0:
-      print('number model: ', str(count))
+for k in np.arange(3,5):
+  print("Prediction next: ", k)
+  for i in np.arange(0,len(time_list)-k):
+    for j in name_tile:
+      out_tile =['Date'] + [j]
+      in_tile = ['Date'] + name_tile.copy()
+      in_tile.remove(j)
+      dfw_in  = dict_dftime[time_list[i]][in_tile]
+      dfw_out = dict_dftime[time_list[i+k]][out_tile]
+      df_matrix = pd.merge(dfw_in, dfw_out, how='outer', on=['Date'])
+      df_matrix = df_matrix.dropna().drop(['Date'], axis=1)
+      new_recarray = df_matrix.to_records()
+      np.save('{}{:>04}_{:>04}_{}.npy'.format(wdir, time_list[i], time_list[i+k], j), new_recarray)
+      count += 1
+      if count%500 == 0:
+        print('number model: ', str(count))
+
+print('[PL-2-preprocessing]: {}'.format(datetime.now() - tnow), flush=True)
 

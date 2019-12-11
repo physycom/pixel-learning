@@ -4,16 +4,12 @@ import requests
 import json
 import os
 import csv
+import numpy as np
 import pandas as pd
 import argparse
 from time import time
 from datetime import datetime, timedelta
 from dateutil import tz
-
-##########################
-#### global scope ########
-##########################
-lastrecname = 'lastrec.txt'
 
 
 ##########################
@@ -26,7 +22,7 @@ def make_request(tag, type, url, headers, timeout, data, proxies):
       r = requests.post(
         url,
         data=data,
-        headers=head,
+        headers=headers,
         proxies=proxies,
         timeout=timeout
       )
@@ -34,7 +30,7 @@ def make_request(tag, type, url, headers, timeout, data, proxies):
       r = requests.get(
         url,
         data=data,
-        headers=head,
+        headers=headers,
         proxies=proxies,
         timeout=timeout
       )
@@ -48,6 +44,150 @@ def make_request(tag, type, url, headers, timeout, data, proxies):
     os.remove(lastrecname)
     exit(1)
   return tela, r
+
+
+##########################
+#### ML ##################
+##########################
+def get_data(schedule):
+  if 1:
+    head={
+      'Content-Type' : 'application/json'
+    }
+
+    tauth, rauth = make_request(
+      tag = 'Authentication',
+      type = 'POST',
+      url=wapi_login,
+      data=json.dumps(cred),
+      headers=head,
+      proxies=proxies,
+      timeout=60
+    )
+
+    xauth = ''
+    try:
+      print('[pixle-pred] Authentication : %s'%(rauth.content), flush=True)
+      xauth = rauth.headers['X-Auth']
+    except:
+      print('[pixle-pred] Authentication unexpected answer')
+      os.remove(lastrecname)
+      exit(1)
+
+    print('[pixle-pred] Authentication took {}'.format(tauth), flush=True)
+
+    head = {
+      'Content-Type' : 'application/json',
+      'X-Auth'       : xauth
+    }
+
+    timetag = schedule['date'] + '_' + schedule['time']
+    data = {
+      'data'        : schedule['utcdate'],
+      'ora'         : schedule['utctime'],
+      'granularita' : '15',
+      'colors'      : ['P','Ni','Ns','Vr','Vp','Vi','Ve'],
+      'ace'         : '05|027|042'
+    }
+
+    tdata, rdata = make_request(
+      tag = 'Data',
+      type = 'POST',
+      url=wapi_data,
+      headers=head,
+      data=json.dumps(data),
+      proxies=proxies,
+      timeout=120
+    )
+
+    print('[pixle-pred] Data request for {}_{} (UTC {}_{}) took {}'.format(schedule['date'], schedule['time'], s['utcdate'], s['utctime'], tdata), flush=True)
+    tiledata = rdata.json()
+  else:
+    with open('coraggio.json') as ji:
+      tiledata = json.load(ji)
+
+  df = pd.DataFrame(columns=['X', 'Y', schedule['time']])
+
+  with open('coraggio.json', 'w') as out:
+    json.dump(tiledata, out, sort_keys=True)
+
+  for jtile in tiledata["Data"]:
+    for time, timeval in jtile["valuePresence"].items():
+      for tag, cnt in timeval.items():
+        if tag == "P":
+          #print(df.shape[0])
+          df.loc[df.shape[0]] = [jtile["tileX"], jtile["tileY"], cnt]
+          #print(df.shape[0])
+          #print('****')
+
+  #print(df)
+  return df
+
+def make_prediction(df_input, weight_file):
+  df_input['Tile'] = ['{:.0f}-{:.0f}'.format(i, j) for i,j in zip(df_input.X, df_input.Y)]
+  tag_hour_now = df_input.columns[2]
+
+  df_weights = pd.read_json(weight_file, orient='records')
+  df_weights.Hour_in = ['{:>04}'.format(i) for i in df_weights.Hour_in]
+  df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
+  df_hour_now = df_weights[df_weights.Hour_in == tag_hour_now]
+
+  #print(df_weights)
+  #print(df_hour_now)
+
+  column_list = ['X','Y','Hour_in','Hour_out','P']
+  df_output = pd.DataFrame( columns = column_list)
+  for i in np.arange(0, df_hour_now.shape[0]):
+    df_model = df_hour_now.iloc[i]
+    time_in = df_model.Hour_in
+    time_out = df_model.Hour_out
+    intercept = df_model.Intercept
+    X_out = df_model.Tile_out.split('-')[0]
+    Y_out = df_model.Tile_out.split('-')[1]
+
+    tile_out = df_model.Tile_out
+    #print(df_input.Tile)
+    #print(df_input.Tile.isin(df_model.Tile_in))
+    df_mod_in = df_input[df_input.Tile.isin(df_model.Tile_in)]
+    df_mod_in = df_mod_in.sort_values(by=['X','Y'])
+
+    if df_mod_in.shape[0] != len(df_model.Tile_in):
+      #print(df_mod_in)
+      #print(df_model.Tile_in)
+      print('[pixle-pred] Problem: you can\'t do this prediction!!')
+      exit(1)
+
+    prediction = round((np.array(df_mod_in[tag_hour_now])*np.array(df_model.Slope)).sum()+intercept)
+
+    if prediction < 0:
+      print('[pixle-pred] WARNING: Negative prediction')
+      #exit(1)
+
+    df_output = df_output.append(pd.DataFrame(
+      [[X_out, Y_out, time_in, time_out, prediction]],
+      columns = column_list
+    ))
+    df_output = df_output.astype({ 'X' : 'int', 'Y' : 'int'})
+
+  return df_output
+
+def dump_data(df_tosend, schedule, geo_tile_file):
+  df_maptile = pd.read_csv(geo_tile_file, sep=',', names=['X','Y','LatMin','LonMin','LatMax','LonMax'])
+  df_maptile = df_maptile.astype({ 'X' : 'int', 'Y' : 'int'})
+  df_tosend = df_tosend.astype({ 'P' : 'int' })
+  df_tosend = df_tosend.merge(df_maptile, how='left', on=['X', 'Y'])
+  df_tosend['Datetime'] = [ datetime.strptime(s['date']+'-'+hour_out, '%y%m%d-%H%M').strftime('%Y-%m-%d %H:%M:%S') for hour_out in df_tosend.Hour_out ]
+  df_tosend.to_csv(
+    schedule['date']+'_'+schedule['time']+'.csv',
+    columns=['Datetime','X','Y','LatMin','LonMin','LatMax','LonMax','P'],
+    index=False
+  )
+
+
+##########################
+#### global scope ########
+##########################
+lastrecname = 'lastrec.txt'
 
 
 ##########################
@@ -95,6 +235,20 @@ if 'pred_dt_min' in conf:
   pred_dt = conf['pred_dt_min']
 else:
   pred_dt = 0
+
+# prediction dt
+if 'weight_file' in conf:
+  weight_file = conf['weight_file']
+else:
+  print('[pixle-pred] Weight file not found in JSON config')
+  exit(1)
+
+# prediction dt
+if 'geo_tile_file' in conf:
+  geo_tile_file = conf['geo_tile_file']
+else:
+  print('[pixle-pred] GEOtile file not found in JSON config')
+  exit(1)
 
 # web api url
 try:
@@ -148,10 +302,7 @@ else:
   with open(lastrecname, "w") as lastrec:
     lastrec.write(timetag)
 
-timetag = '{}_{}'.format(schedule[0]['date'], schedule[0]['time'])
-
 for s in schedule:
-  s["prediction_dt_sec"] = pred_dt * 60
-  with open(wdir + 'px-prediction-{}.json'.format(timetag), 'w') as out:
-    json.dump(s, out, sort_keys=True)
-
+  df_in = get_data(s)
+  df_out = make_prediction(df_in, weight_file)
+  dump_data(df_out, s, geo_tile_file)

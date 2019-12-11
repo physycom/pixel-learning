@@ -36,6 +36,8 @@ time_group = df_input.groupby(['IdHour'])
 time_list = list(time_group.groups.keys())
 dict_dftime = {}
 for j in time_list:
+  print('[PL-2-preprocessing] Processing data : {}'.format(j), flush=True)
+
   df_time = time_group.get_group(j)
   group_df  =  df_time.groupby(['TileX','TileY'])
   tile_list = list(group_df.groups.keys())
@@ -58,7 +60,7 @@ for x in tile_list:
 
 count = 0
 
-for k in np.arange(3,5):
+for k in np.arange(1,5):
   print("Prediction next: ", k)
   for i in np.arange(0,len(time_list)-k):
     for j in name_tile:

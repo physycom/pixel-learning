@@ -178,7 +178,7 @@ def dump_data(df_tosend, schedule, geo_tile_file):
   df_tosend = df_tosend.merge(df_maptile, how='left', on=['X', 'Y'])
   df_tosend['Datetime'] = [ datetime.strptime(s['date']+'-'+hour_out, '%y%m%d-%H%M').strftime('%Y-%m-%d %H:%M:%S') for hour_out in df_tosend.Hour_out ]
   df_tosend.to_csv(
-    schedule['date']+'_'+schedule['time']+'.csv',
+    wdir + '/' + schedule['date']+'_'+schedule['time']+'.csv',
     columns=['Datetime','X','Y','LatMin','LonMin','LatMax','LonMax','P'],
     index=False
   )

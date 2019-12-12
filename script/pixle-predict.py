@@ -111,6 +111,11 @@ def get_data(schedule):
           df.loc[df.shape[0]] = [jtile["tileX"], jtile["tileY"], cnt]
 
   print('[pixle-pred] Tile data {}/{} ({} %)'.format(df.shape[0], len(tiledata['Data']), (100 * df.shape[0]) // len(tiledata['Data'])))
+  if df.shape[0] == 0:
+    print('[pixle-pred] EMPTY tile data')
+    os.remove(lastrecname)
+    exit(1)
+
   return df
 
 def make_prediction(df_input, weight_file):

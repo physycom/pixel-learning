@@ -50,77 +50,67 @@ def make_request(tag, type, url, headers, timeout, data, proxies):
 #### ML ##################
 ##########################
 def get_data(schedule):
-  if 0:
-    head={
-      'Content-Type' : 'application/json'
-    }
+  head={
+    'Content-Type' : 'application/json'
+  }
 
-    tauth, rauth = make_request(
-      tag = 'Authentication',
-      type = 'POST',
-      url=wapi_login,
-      data=json.dumps(cred),
-      headers=head,
-      proxies=proxies,
-      timeout=60
-    )
+  tauth, rauth = make_request(
+    tag = 'Authentication',
+    type = 'POST',
+    url=wapi_login,
+    data=json.dumps(cred),
+    headers=head,
+    proxies=proxies,
+    timeout=60
+  )
 
-    xauth = ''
-    try:
-      print('[pixle-pred] Authentication : %s'%(rauth.content), flush=True)
-      xauth = rauth.headers['X-Auth']
-    except:
-      print('[pixle-pred] Authentication unexpected answer')
-      os.remove(lastrecname)
-      exit(1)
+  xauth = ''
+  try:
+    print('[pixle-pred] Authentication : %s'%(rauth.content), flush=True)
+    xauth = rauth.headers['X-Auth']
+  except:
+    print('[pixle-pred] Authentication unexpected answer')
+    os.remove(lastrecname)
+    exit(1)
 
-    print('[pixle-pred] Authentication took {}'.format(tauth), flush=True)
+  print('[pixle-pred] Authentication took {}'.format(tauth), flush=True)
 
-    head = {
-      'Content-Type' : 'application/json',
-      'X-Auth'       : xauth
-    }
+  head = {
+    'Content-Type' : 'application/json',
+    'X-Auth'       : xauth
+  }
 
-    timetag = schedule['date'] + '_' + schedule['time']
-    data = {
-      'data'        : schedule['utcdate'],
-      'ora'         : schedule['utctime'],
-      'granularita' : '15',
-      'colors'      : ['P','Ni','Ns','Vr','Vp','Vi','Ve'],
-      'ace'         : '05|027|042'
-    }
+  timetag = schedule['date'] + '_' + schedule['time']
+  data = {
+    'data'        : schedule['utcdate'],
+    'ora'         : schedule['utctime'],
+    'granularita' : '15',
+    'colors'      : ['P','Ni','Ns','Vr','Vp','Vi','Ve'],
+    'ace'         : '05|027|042'
+  }
 
-    tdata, rdata = make_request(
-      tag = 'Data',
-      type = 'POST',
-      url=wapi_data,
-      headers=head,
-      data=json.dumps(data),
-      proxies=proxies,
-      timeout=120
-    )
+  tdata, rdata = make_request(
+    tag = 'Data',
+    type = 'POST',
+    url=wapi_data,
+    headers=head,
+    data=json.dumps(data),
+    proxies=proxies,
+    timeout=120
+  )
 
-    print('[pixle-pred] Data request for {}_{} (UTC {}_{}) took {}'.format(schedule['date'], schedule['time'], s['utcdate'], s['utctime'], tdata), flush=True)
-    tiledata = rdata.json()
-  else:
-    with open('coraggio.json') as ji:
-      tiledata = json.load(ji)
+  print('[pixle-pred] Data request for {}_{} (UTC {}_{}) took {}'.format(schedule['date'], schedule['time'], s['utcdate'], s['utctime'], tdata), flush=True)
+  tiledata = rdata.json()
 
   df = pd.DataFrame(columns=['X', 'Y', schedule['time']])
-
-  with open('coraggio.json', 'w') as out:
-    json.dump(tiledata, out, sort_keys=True)
 
   for jtile in tiledata["Data"]:
     for time, timeval in jtile["valuePresence"].items():
       for tag, cnt in timeval.items():
         if tag == "P":
-          #print(df.shape[0])
           df.loc[df.shape[0]] = [jtile["tileX"], jtile["tileY"], cnt]
-          #print(df.shape[0])
-          #print('****')
 
-  #print(df)
+  print('[pixle-pred] Tile data {}/{} ({} %)'.format(df.shape[0], len(tiledata['Data']), (100 * df.shape[0]) // len(tiledata['Data'])))
   return df
 
 def make_prediction(df_input, weight_file):
@@ -131,9 +121,6 @@ def make_prediction(df_input, weight_file):
   df_weights.Hour_in = ['{:>04}'.format(i) for i in df_weights.Hour_in]
   df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
   df_hour_now = df_weights[df_weights.Hour_in == tag_hour_now]
-
-  #print(df_weights)
-  #print(df_hour_now)
 
   column_list = ['X','Y','Hour_in','Hour_out','P']
   df_output = pd.DataFrame( columns = column_list)
@@ -146,16 +133,12 @@ def make_prediction(df_input, weight_file):
     Y_out = df_model.Tile_out.split('-')[1]
 
     tile_out = df_model.Tile_out
-    #print(df_input.Tile)
-    #print(df_input.Tile.isin(df_model.Tile_in))
     df_mod_in = df_input[df_input.Tile.isin(df_model.Tile_in)]
     df_mod_in = df_mod_in.sort_values(by=['X','Y'])
 
     if df_mod_in.shape[0] != len(df_model.Tile_in):
-      #print(df_mod_in)
-      #print(df_model.Tile_in)
-      print('[pixle-pred] Problem: you can\'t do this prediction!!')
-      exit(1)
+      print('[pixle-pred] Missing prediction tile : {}'.format(tile_out))
+      continue
 
     prediction = round((np.array(df_mod_in[tag_hour_now])*np.array(df_model.Slope)).sum()+intercept)
 

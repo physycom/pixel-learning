@@ -50,7 +50,7 @@ def make_request(tag, type, url, headers, timeout, data, proxies):
 #### ML ##################
 ##########################
 def get_data(schedule):
-  if 1:
+  if 0:
     head={
       'Content-Type' : 'application/json'
     }
@@ -172,15 +172,16 @@ def make_prediction(df_input, weight_file):
   return df_output
 
 def dump_data(df_tosend, schedule, geo_tile_file):
-  df_maptile = pd.read_csv(geo_tile_file, sep=',', names=['X','Y','LatMin','LonMin','LatMax','LonMax'])
+  df_maptile = pd.read_csv(geo_tile_file, sep=',')
   df_maptile = df_maptile.astype({ 'X' : 'int', 'Y' : 'int'})
   df_tosend = df_tosend.astype({ 'P' : 'int' })
   df_tosend = df_tosend.merge(df_maptile, how='left', on=['X', 'Y'])
   df_tosend['Datetime'] = [ datetime.strptime(s['date']+'-'+hour_out, '%y%m%d-%H%M').strftime('%Y-%m-%d %H:%M:%S') for hour_out in df_tosend.Hour_out ]
   df_tosend.to_csv(
     wdir + '/' + schedule['date']+'_'+schedule['time']+'.csv',
-    columns=['Datetime','X','Y','LatMin','LonMin','LatMax','LonMax','P'],
-    index=False
+    columns=['Datetime','X','Y','LatMin','LatMax','LonMin','LonMax','P'],
+    index=False,
+    float_format='%.4f'
   )
 
 

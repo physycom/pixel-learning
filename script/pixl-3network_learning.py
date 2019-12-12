@@ -19,11 +19,12 @@ import multiprocessing as mp
 
 
 def train_model(name_file):
-    records = np.load(dir_path+'/'+name_file)
+    records = np.load(name_file)
     df = pd.DataFrame(records).drop('index', axis=1)
     df = df.sample(frac=1).reset_index(drop=True)
 
-    item = name_file.split('.')[0].split('_')
+    item = name_file.split('\\')[-1]
+    item = item.split('.')[0].split('_')
     time_in = item[0]
     time_out = item[1]
 
@@ -48,36 +49,42 @@ def train_model(name_file):
                     columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
     return df_work
 
-# parse command line
-if len(sys.argv) < 2:
-	print("Usage :", sys.argv[0], "path/to/npy/dir")
-	exit(1)
-dir_path  = sys.argv[1]
+if __name__ ==  '__main__':
+    # parse command line
+    if len(sys.argv) < 2:
+    	print("Usage :", sys.argv[0], "path/to/npy/dir")
+    	exit(1)
+    dir_path  = sys.argv[1]
 
-# Fix random seed for reproducibility
-my_seed = 42
-random.seed(my_seed)
-np.random.seed(my_seed)
+    # Fix random seed for reproducibility
+    my_seed = 42
+    random.seed(my_seed)
+    np.random.seed(my_seed)
 
-# train models
-tic = timer()
+    # train models
+    tic = timer()
 
-file_list = [f for f in listdir(dir_path) if (isfile(join(dir_path, f)) and f.endswith('.npy'))]
-weight_matrix = pd.DataFrame(columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
+    file_list = [f for f in listdir(dir_path) if (isfile(join(dir_path, f)) and f.endswith('.npy'))]
+    file_list = [dir_path+i for i in file_list]
 
-#pool = mp.Pool(mp.cpu_count())
-#weight_matrix = weight_matrix.append([pool.apply(train_model(i)) for i in file_list])
+    weight_matrix = pd.DataFrame(columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
 
-cnt_tot = len(file_list)
-cnt = 0
-for i in file_list:
-    cnt+=1
-    if(cnt%250==0):
-        print('Model: {}/{}'.format(cnt, cnt_tot))
-    weight_matrix = weight_matrix.append(train_model(i))
+    ###### Parallel ######
+    pool = mp.Pool(mp.cpu_count())
+    weight_matrix = weight_matrix.append(pool.map(train_model, [i for i in file_list]))
+    pool.close()
 
-weight_matrix = weight_matrix.sort_values(by=['Hour_in', 'Hour_out'])
-weight_matrix.to_json('weight_matrix.json',orient='records')
+    ###### Serial ######
+    #cnt_tot = len(file_list)
+    #cnt = 0
+    #for i in file_list:
+    #    cnt+=1
+    #    if(cnt%250==0):
+    #        print('Model: {}/{}'.format(cnt, cnt_tot))
+    #   weight_matrix = weight_matrix.append(train_model(i))
 
-tac = timer()
-print('[PL-3-netlearn]: {}'.format(tac - tic), flush=True)
+    weight_matrix = weight_matrix.sort_values(by=['Hour_in', 'Hour_out'])
+    weight_matrix.to_json('weight_matrix.json',orient='records')
+
+    tac = timer()
+    print('[PL-3-netlearn]: {}'.format(tac - tic), flush=True)

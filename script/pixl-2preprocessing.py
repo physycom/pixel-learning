@@ -58,7 +58,7 @@ for x in tile_list:
 
 count = 0
 
-for k in np.arange(3,5):
+for k in np.arange(1,5):
   print("Prediction next: ", k)
   for i in np.arange(0,len(time_list)-k):
     for j in name_tile:

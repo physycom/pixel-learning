@@ -15,9 +15,6 @@ from sklearn.feature_selection import f_regression
 from timeit import default_timer as timer
 import multiprocessing as mp
 
-
-
-
 def train_model(name_file):
     records = np.load(name_file)
     df = pd.DataFrame(records).drop('index', axis=1)
@@ -36,7 +33,7 @@ def train_model(name_file):
     y = df[y_name]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-    test = SelectKBest(f_regression, k=7)
+    test = SelectKBest(f_regression, k=15)
     fit_model = test.fit(X_train, y_train)
     X_train_new = fit_model.transform(X_train)
     X_test_new = fit_model.transform(X_test)

@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 import pandas as pd
 import numpy as np
 import csv
@@ -46,24 +48,21 @@ def send(df_tosend):
   return
 
 # parse command line
-if len(sys.argv) < 2:
-  print("Usage :", sys.argv[0], "path/to/csv/input", "number/of/prediction/quarter")
-  exit(1)
-input_file    = sys.argv[1]
-day_name     = (input_file.split('\\')[-1]).split('_')[0]
+if __name__ == '__main__':
+  if len(sys.argv) < 2:
+    print("Usage :", sys.argv[0], "path/to/csv/input", "number/of/prediction/quarter")
+    exit(1)
+  input_file    = sys.argv[1]
+  day_name     = (input_file.split('\\')[-1]).split('_')[0]
 
-# Load matrix of weights and tile info
-df_weights = pd.read_json('weight_matrix.json', orient='records')
-df_weights.Hour_in = ['{:>04}'.format(i) for i in df_weights.Hour_in]
-df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
+  # Load matrix of weights and tile info
+  df_weights = pd.read_json('weight_matrix.json', orient='records')
+  df_weights.Hour_in = ['{:>04}'.format(i) for i in df_weights.Hour_in]
+  df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
 
-# Necessary for lat lon connection
-#df_maptile = pd.read_csv('maptiletim_latlon.csv', sep=',', names=['X','Y','LatMin','LonMin','LatMax','LonMax'])
-
-
-df_data = receive(input_file)
-df_data = make_prediction(df_data)
-send(df_data)
+  df_data = receive(input_file)
+  df_data = make_prediction(df_data)
+  send(df_data)
 
 
 

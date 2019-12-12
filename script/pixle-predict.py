@@ -181,7 +181,7 @@ def dump_data(df_tosend, schedule, geo_tile_file):
     wdir + '/' + schedule['date']+'_'+schedule['time']+'.csv',
     columns=['Datetime','X','Y','LatMin','LatMax','LonMin','LonMax','P'],
     index=False,
-    float_format='%.4f'
+    float_format='%.6f'
   )
 
 

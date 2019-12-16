@@ -78,7 +78,7 @@ if __name__ ==  '__main__':
     #    cnt+=1
     #    if(cnt%250==0):
     #        print('Model: {}/{}'.format(cnt, cnt_tot))
-    #   weight_matrix = weight_matrix.append(train_model(i))
+    #    weight_matrix = weight_matrix.append(train_model(i))
 
     weight_matrix = weight_matrix.sort_values(by=['Hour_in', 'Hour_out'])
     weight_matrix.to_json('weight_matrix.json',orient='records')

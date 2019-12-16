@@ -25,6 +25,7 @@ try:
 except FileExistsError:
   pass
 
+
 # preprocess input data
 df_input  = pd.read_csv(input_file, sep=';')
 df_datehour = pd.DataFrame(df_input.Timestamp.str.split(' ',1).tolist(),

@@ -127,8 +127,10 @@ def make_prediction(df_input, weight_file):
   df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
   df_hour_now = df_weights[df_weights.Hour_in == tag_hour_now]
 
+  prediction_default = 50
+
   column_list = ['X','Y','Hour_in','Hour_out','P']
-  df_output = pd.DataFrame( columns = column_list)
+  df_output = pd.DataFrame(columns=column_list)
   for i in np.arange(0, df_hour_now.shape[0]):
     df_model = df_hour_now.iloc[i]
     time_in = df_model.Hour_in
@@ -136,20 +138,30 @@ def make_prediction(df_input, weight_file):
     intercept = df_model.Intercept
     X_out = df_model.Tile_out.split('-')[0]
     Y_out = df_model.Tile_out.split('-')[1]
-
     tile_out = df_model.Tile_out
+
+    #print(tile_out, " ", df_input[df_input.Tile == tile_out].values[0][2])
+
     df_mod_in = df_input[df_input.Tile.isin(df_model.Tile_in)]
     df_mod_in = df_mod_in.sort_values(by=['X','Y'])
 
     if df_mod_in.shape[0] != len(df_model.Tile_in):
       print('[pixle-pred] Missing prediction tile : {}'.format(tile_out))
-      continue
+      if df_input[df_input.Tile == tile_out].shape[0] == 0:
+        print('[pixle-pred] Setting to default {}'.format(tile_out))
+        prediction = prediction_default
+      else:
+        prediction = df_input[df_input.Tile == tile_out].values[0][2]
 
     prediction = round((np.array(df_mod_in[tag_hour_now])*np.array(df_model.Slope)).sum()+intercept)
 
     if prediction < 0:
       print('[pixle-pred] WARNING: Negative prediction')
-      #exit(1)
+      if df_input[df_input.Tile == tile_out].shape[0] == 0:
+        print('[pixle-pred] Setting to default {}'.format(tile_out))
+        prediction = prediction_default
+      else:
+        prediction = df_input[df_input.Tile == tile_out].values[0][2]
 
     df_output = df_output.append(pd.DataFrame(
       [[X_out, Y_out, time_in, time_out, prediction]],

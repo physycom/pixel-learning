@@ -12,6 +12,14 @@ from datetime import datetime
 import multiprocessing as mp
 from timeit import default_timer as timer
 
+def read_input(file_name):
+  df_input  = pd.read_csv(input_file, sep=';')
+  df_datehour = pd.DataFrame(df_input.Timestamp.str.split(' ',1).tolist(),
+                                     columns = ['Date','Hour'])
+  df_input = pd.concat([df_input,df_datehour], axis=1)
+  df_hour = pd.DataFrame(df_input.Hour.str.split(':',2).tolist(), columns=['Hour', 'Min', 'Sec'])
+  df_input['IdHour']=df_hour['Hour']+df_hour['Min']
+  return df_input
 
 def make_input(df_time):
   tag = df_time.IdHour.iloc[0]
@@ -25,8 +33,8 @@ def make_input(df_time):
     tile_name = str(i[0])+'-'+str(i[1])
     df_tile = df_tile.rename(columns={'P':tile_name}, inplace=False)
     df_in = pd.merge(df_in,df_tile, how='outer', on=['Date'])
-    dictw = {}
-    dictw[tag] = df_in
+  dictw = {}
+  dictw[tag] = df_in
   return dictw
 
 def make_matrix_item(i):
@@ -57,30 +65,23 @@ if __name__ ==  '__main__':
   except FileExistsError:
     pass
 
+  df_input = read_input(input_file)
 
-  # preprocess input data
-  df_input  = pd.read_csv(input_file, sep=';')
-  df_datehour = pd.DataFrame(df_input.Timestamp.str.split(' ',1).tolist(),
-                                     columns = ['Date','Hour'])
-  df_input = pd.concat([df_input,df_datehour], axis=1)
-  df_hour = pd.DataFrame(df_input.Hour.str.split(':',2).tolist(), columns=['Hour', 'Min', 'Sec'])
-  df_input['IdHour']=df_hour['Hour']+df_hour['Min']
   time_group = df_input.groupby(['IdHour'])
   time_list = list(time_group.groups.keys())
   dict_dftime = {}
 
   tic = timer()
   ##### Parallel #############
-  pool = mp.Pool(mp.cpu_count())
-  dict_dftime = {k: v for d in pool.map(make_input, [time_group.get_group(j) for j in time_list]) for k, v in d.items()}
-  pool.close()
+  #pool = mp.Pool(mp.cpu_count())
+  #dict_dftime = {k: v for d in pool.map(make_input, [time_group.get_group(j) for j in time_list]) for k, v in d.items()}
+  #pool.close()
 
   ##### Serial #############
-
-  #for j in time_list:
-  #  print('[PL-2-preprocessing] Processing data : {}'.format(j), flush=True)
-  #  df_time = time_group.get_group(j)
-  #  dict_dftime.update(make_input(df_time))
+  for j in time_list:
+    print('[PL-2-preprocessing] Processing data : {}'.format(j), flush=True)
+    df_time = time_group.get_group(j)
+    dict_dftime.update(make_input(df_time))
 
   tac = timer()
   print('[PL-2-preprocessing] Read each input: {}'.format(tac - tic), flush=True)

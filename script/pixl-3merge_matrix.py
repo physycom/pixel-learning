@@ -19,6 +19,8 @@ if len(sys.argv) < 2:
   exit(1)
 dir_path = sys.argv[1]
 
+tic = timer()
+
 file_list = [f for f in listdir(dir_path) if (isfile(join(dir_path, f)) and f.endswith('.json'))]
 
 columns_list = ['Hour_in', 'Hour_out', 'Intercept', 'Score', 'Slope', 'Tile_in', 'Tile_out']
@@ -33,3 +35,5 @@ for i in file_list:
 df_weights = df_weights.sort_values(by=['Hour_in', 'Hour_out'])
 df_weights.to_json('weight_matrix.json',orient='records')
 
+tac = timer()
+print('[PL-3merge_matrix] : {}'.format(tac - tic), flush=True)

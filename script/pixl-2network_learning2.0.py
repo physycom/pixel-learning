@@ -16,6 +16,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 
+  my_seed = 42
+  random.seed(my_seed)
+  np.random.seed(my_seed)
 
 def train_model(dict_matrix):
     name_model = list(dict_matrix.keys())[0]

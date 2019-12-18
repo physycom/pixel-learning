@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import random
 from datetime import datetime
 import multiprocessing as mp
 from timeit import default_timer as timer
@@ -16,16 +17,17 @@ from sklearn.linear_model import LinearRegression
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 
-  my_seed = 42
-  random.seed(my_seed)
-  np.random.seed(my_seed)
+my_seed = 42
+random.seed(my_seed)
+np.random.seed(my_seed)
 
 def train_model(dict_matrix):
     name_model = list(dict_matrix.keys())[0]
     df = dict_matrix[name_model]
     df = df.sample(frac=1).reset_index(drop=True)
 
-    item = name_model.split('_')
+    item = name_model.split('/')[-1]
+    item = item.split('_')
     time_in = item[0]
     time_out = item[1]
 
@@ -37,7 +39,7 @@ def train_model(dict_matrix):
     y = df[y_name]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-    test = SelectKBest(f_regression, k=15)
+    test = SelectKBest(f_regression, k=7)
     fit_model = test.fit(X_train, y_train)
     X_train_new = fit_model.transform(X_train)
     X_test_new = fit_model.transform(X_test)
@@ -48,7 +50,7 @@ def train_model(dict_matrix):
     r_sq = model.score(X_test_new,y_test)
     df_work = pd.DataFrame([[time_in, time_out, y_name, X_name, model.intercept_, model.coef_, r_sq]],
                     columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
-    df_work.to_json('../output/'+ name_model +'.json',orient='records')
+    df_work.to_json(name_model +'.json',orient='records')
 
 
 def read_input(file_name):
@@ -103,14 +105,14 @@ def make_matrix_item(dict_dftime):
 
 if __name__ ==  '__main__':
   # parse command line
-  if len(sys.argv) < 2:
-    print("Usage :", sys.argv[0], "path/to/csv/input")
+  if len(sys.argv) < 3:
+    print("Usage :", sys.argv[0], "path/to/csv/input", "output/dir")
     exit(1)
   input_file = sys.argv[1]
+  wdir = sys.argv[2]
   print('[PL-2-prepro] Pre-processing : {}'.format(input_file))
 
   # setup folder
-  wdir = '../output/'
   try:
     os.makedirs(wdir)
   except FileExistsError:
@@ -133,6 +135,11 @@ if __name__ ==  '__main__':
   tac = timer()
   print('[PL-2-preprocessing] Rearrange matrix: {}'.format(tac - tic), flush=True)
   tic = timer()
+  for m in result:
+    for i in m:
+      old_name = list(i.keys())[0]
+      new_name = wdir + '/' + old_name
+      i[ new_name ] = i.pop(old_name)
   for m in result:
     pool.map(train_model, m)
   pool.close()

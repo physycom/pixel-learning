@@ -21,6 +21,8 @@ my_seed = 42
 random.seed(my_seed)
 np.random.seed(my_seed)
 
+#sys.stdout = open("shell.txt", "w")
+
 def train_model(dict_matrix):
     name_model = list(dict_matrix.keys())[0]
     df = dict_matrix[name_model]
@@ -39,7 +41,7 @@ def train_model(dict_matrix):
     y = df[y_name]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-    test = SelectKBest(f_regression, k=15)
+    test = SelectKBest(f_regression, k=7)
     fit_model = test.fit(X_train, y_train)
     X_train_new = fit_model.transform(X_train)
     X_test_new = fit_model.transform(X_test)
@@ -50,6 +52,7 @@ def train_model(dict_matrix):
     r_sq = model.score(X_test_new,y_test)
     df_work = pd.DataFrame([[time_in, time_out, y_name, X_name, model.intercept_, model.coef_, r_sq]],
                     columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
+    print(name_model)
     df_work.to_json(name_model +'.json',orient='records')
 
 
@@ -77,6 +80,7 @@ def rearrange_input(df_time):
     df_in = pd.merge(df_in,df_tile, how='outer', on=['Date'])
   dictw = {}
   dictw[tag] = df_in
+  #print('1 --- ',tag)
   return dictw
 
 def make_matrix_item(dict_dftime):
@@ -98,6 +102,7 @@ def make_matrix_item(dict_dftime):
       dict_matrix={}
       dict_matrix['{:>04}_{:>04}_{}'.format(input_key, out_k, j)] = df_matrix
       list_dict.append(dict_matrix)
+  print('2 --- ', input_key)
   return list_dict
       #new_recarray = df_matrix.to_records()
       #np.save('{}{:>04}_{:>04}_{}.npy'.format('../output/', input_key, out_k, j), new_recarray)
@@ -119,6 +124,7 @@ if __name__ ==  '__main__':
     pass
 
   tic = timer()
+  first_tic = tic
   df_input = read_input(input_file)
 
   time_group = df_input.groupby(['IdHour'])
@@ -129,35 +135,36 @@ if __name__ ==  '__main__':
   number_prediction = 4
 
   ##### Parallel #############
-  tic = timer()
-  pool = mp.Pool(mp.cpu_count())
-  result = pool.map(make_matrix_item, [{k: v for d in pool.map(rearrange_input, [time_group.get_group(i) for i in time_list[j:j+min(number_prediction,len(time_list)-j)+1]]) for k, v in d.items()} for j in np.arange(0,len(time_list))])
-  tac = timer()
-  print('[PL-2-preprocessing] Rearrange matrix: {}'.format(tac - tic), flush=True)
-  tic = timer()
-  for m in result:
-    for i in m:
-      old_name = list(i.keys())[0]
-      new_name = wdir + '/' + old_name
-      i[ new_name ] = i.pop(old_name)
-  for m in result:
-    pool.map(train_model, m)
-  pool.close()
-
-  ##### Serial #############
   #tic = timer()
-  #for j in np.arange(0,len(time_list[:-number_prediction])):
-  #  timew = time_list[j:(j+min(number_prediction, len(time_list)-j)+1)]
-  #  dict_dftime = {}
-  #  for i in timew:
-  #    df_time = time_group.get_group(i)
-  #    dict_dftime.update(rearrange_input(df_time))
-  #  list_dict_matrix = make_matrix_item(dict_dftime)
-  #  for i in list_dict_matrix:
-  #    train_model(i)
+  #pool = mp.Pool(mp.cpu_count())
+  #result = pool.map(make_matrix_item, [{k: v for d in pool.map(rearrange_input, [time_group.get_group(i) for i in time_list[j:j+min(number_prediction,len(time_list)-j)+1]]) for k, v in d.items()} for j in np.arange(0,len(time_list))])
+  #tac = timer()
+  #print('[PL-2-preprocessing] Rearrange matrix: {}'.format(tac - tic), flush=True)
+  #tic = timer()
+  #for m in result:
+  #  for i in m:
+  #    old_name = list(i.keys())[0]
+  #    new_name = wdir + '/' + old_name
+  #    i[ new_name ] = i.pop(old_name)
+  #for m in result:
+  #  pool.map(train_model, m)
+  #pool.close()
+
+  #### Serial #############
+  tic = timer()
+  for j in np.arange(0,len(time_list[:-number_prediction])):
+    timew = time_list[j:(j+min(number_prediction, len(time_list)-j)+1)]
+    dict_dftime = {}
+    for i in timew:
+      df_time = time_group.get_group(i)
+      dict_dftime.update(rearrange_input(df_time))
+    list_dict_matrix = make_matrix_item(dict_dftime)
+    for i in list_dict_matrix:
+      train_model(i)
 
   tac = timer()
   print('[PL-2-networklearning] Make item of matrix: {}'.format(tac - tic), flush=True)
+  print('Total time: {}'.format(tac-first_tic), flush=True)
 
 
 

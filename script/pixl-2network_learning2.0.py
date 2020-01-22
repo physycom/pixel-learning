@@ -21,6 +21,8 @@ my_seed = 42
 random.seed(my_seed)
 np.random.seed(my_seed)
 
+#sys.stdout = open("shell.txt", "w")
+
 def train_model(dict_matrix):
   name_model = list(dict_matrix.keys())[0]
   df = dict_matrix[name_model]
@@ -31,7 +33,7 @@ def train_model(dict_matrix):
   time_in = item[0]
   time_out = item[1]
 
-  column_name =df.columns.tolist()
+  column_name =df.columns.to_list()
   y_name = column_name[-1]
   X_name = column_name[:-1]
 
@@ -43,13 +45,16 @@ def train_model(dict_matrix):
   fit_model = test.fit(X_train, y_train)
   X_train_new = fit_model.transform(X_train)
   X_test_new = fit_model.transform(X_test)
-  X_name = df.columns[fit_model.get_support(indices=True)].tolist()
-    ####################### LINEAR REGRESSION ############################
+  X_name = df.columns[fit_model.get_support(indices=True)].to_list()
+  ####################### LINEAR REGRESSION ############################
   model = LinearRegression()
   model.fit(X_train_new,y_train)
   r_sq = model.score(X_test_new,y_test)
-  df_work = pd.DataFrame([[time_in, time_out, y_name, X_name, model.intercept_, model.coef_, r_sq]], columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
+  df_work = pd.DataFrame([[time_in, time_out, y_name, X_name, model.intercept_, model.coef_, r_sq]],
+                    columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
+  print(name_model)
   df_work.to_json(name_model +'.json',orient='records')
+
 
 def read_input(file_name):
   df_input  = pd.read_csv(input_file, sep=';')
@@ -75,6 +80,7 @@ def rearrange_input(df_time):
     df_in = pd.merge(df_in,df_tile, how='outer', on=['Date'])
   dictw = {}
   dictw[tag] = df_in
+  #print('1 --- ',tag)
   return dictw
 
 def make_matrix_item(dict_dftime):
@@ -96,9 +102,8 @@ def make_matrix_item(dict_dftime):
       dict_matrix={}
       dict_matrix['{:>04}_{:>04}_{}'.format(input_key, out_k, j)] = df_matrix
       list_dict.append(dict_matrix)
+  print('2 --- ', input_key)
   return list_dict
-      #new_recarray = df_matrix.to_records()
-      #np.save('{}{:>04}_{:>04}_{}.npy'.format('../output/', input_key, out_k, j), new_recarray)
 
 
 if __name__ ==  '__main__':
@@ -117,6 +122,7 @@ if __name__ ==  '__main__':
     pass
 
   tic = timer()
+  first_tic = tic
   df_input = read_input(input_file)
 
   time_group = df_input.groupby(['IdHour'])
@@ -125,8 +131,8 @@ if __name__ ==  '__main__':
   tac = timer()
   print('[PL-2-netle] Pre-processing time: {}'.format(tac-tic), flush=True)
   number_prediction = 4
-  
-  parallel = True
+
+  parallel = False
 
   ##### Parallel #############
   if parallel:
@@ -148,7 +154,6 @@ if __name__ ==  '__main__':
 
   ##### Serial #############
   if not parallel:
-    print('[PL-2-netle] MODE Serial'.format(), flush=True)
     tic = timer()
     for j in np.arange(0,len(time_list[:-number_prediction])):
       timew = time_list[j:(j+min(number_prediction, len(time_list)-j)+1)]
@@ -158,8 +163,12 @@ if __name__ ==  '__main__':
         dict_dftime.update(rearrange_input(df_time))
       list_dict_matrix = make_matrix_item(dict_dftime)
       for i in list_dict_matrix:
+        old_name = list(i.keys())[0]
+        new_name = wdir + '/' + old_name
+        i[ new_name ] = i.pop(old_name)
         train_model(i)
-  
+
   tac = timer()
-  print('[PL-2-netle] Make item of matrix: {}'.format(tac - tic), flush=True)
+  print('[PL-2-networklearning] Make item of matrix: {}'.format(tac - tic), flush=True)
+  print('Total time: {}'.format(tac-first_tic), flush=True)
 

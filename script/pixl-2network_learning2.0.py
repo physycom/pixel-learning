@@ -33,7 +33,7 @@ def train_model(dict_matrix):
   time_in = item[0]
   time_out = item[1]
 
-  column_name =df.columns.to_list()
+  column_name =df.columns.tolist()
   y_name = column_name[-1]
   X_name = column_name[:-1]
 
@@ -45,14 +45,13 @@ def train_model(dict_matrix):
   fit_model = test.fit(X_train, y_train)
   X_train_new = fit_model.transform(X_train)
   X_test_new = fit_model.transform(X_test)
-  X_name = df.columns[fit_model.get_support(indices=True)].to_list()
+  X_name = df.columns[fit_model.get_support(indices=True)].tolist()
   ####################### LINEAR REGRESSION ############################
   model = LinearRegression()
   model.fit(X_train_new,y_train)
   r_sq = model.score(X_test_new,y_test)
   df_work = pd.DataFrame([[time_in, time_out, y_name, X_name, model.intercept_, model.coef_, r_sq]],
                     columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
-  print(name_model)
   df_work.to_json(name_model +'.json',orient='records')
 
 
@@ -80,7 +79,6 @@ def rearrange_input(df_time):
     df_in = pd.merge(df_in,df_tile, how='outer', on=['Date'])
   dictw = {}
   dictw[tag] = df_in
-  #print('1 --- ',tag)
   return dictw
 
 def make_matrix_item(dict_dftime):
@@ -102,7 +100,6 @@ def make_matrix_item(dict_dftime):
       dict_matrix={}
       dict_matrix['{:>04}_{:>04}_{}'.format(input_key, out_k, j)] = df_matrix
       list_dict.append(dict_matrix)
-  print('2 --- ', input_key)
   return list_dict
 
 

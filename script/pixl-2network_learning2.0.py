@@ -102,12 +102,22 @@ def make_matrix_item(dict_dftime):
       list_dict.append(dict_matrix)
   return list_dict
 
+def normalize_before_date(df, x_date, norm):
+    if norm==1:
+        return df
+    else:
+        x_dt = datetime.strptime(x_date, '%Y-%m-%d %H:%M:%S')
+        dates = pd.to_datetime(df.Timestamp, format = '%Y-%m-%d %H:%M:%S')
+        df.P = df.P.astype('float32')
+        df.loc[dates.loc[dates<x_dt].index, 'P'] *= norm
+        df.P = df.P.astype('int64')
+        return df
 
 if __name__ ==  '__main__':
   # parse command line
   if len(sys.argv) < 3:
     print("Usage :", sys.argv[0], "path/to/csv/input", "output/dir")
-    exit(1)
+    sys.exit(1)
   input_file = sys.argv[1]
   wdir = sys.argv[2]
   print('[PL-2-netle] Pre-processing : {}'.format(input_file))
@@ -121,6 +131,10 @@ if __name__ ==  '__main__':
   tic = timer()
   first_tic = tic
   df_input = read_input(input_file)
+
+  x_date = '2020-02-19 10:00:00' # if any other format change the normalize function to match
+  norm_factor = 3.125 # need exact value
+  df_input = normalize_before_date(df_input, x_date, norm_factor)
 
   time_group = df_input.groupby(['IdHour'])
   time_list = list(time_group.groups.keys())

@@ -4,9 +4,74 @@ import os
 import json
 import mysql.connector
 from datetime import datetime
+from dateutil import tz
 import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
+
+def write_check_db(df_input, print_zero = False):
+    zeros = 0
+    tiles = len(df_input[["TileX","TileY"]].drop_duplicates())
+    dti = pd.date_range(start=df_input.Timestamp.min(), end = df_input.Timestamp.max(),freq='15min')
+    with open("output_check.txt",'w') as f:
+        f.write('TIMESTAMP -------------- TILES\n')
+        for i in dti:
+            l=len(df_input.loc[df_input.Timestamp==i])
+            if l == 0:
+                zeros += 1
+                if print_zero:
+                    f.write(str(i) + ' --- ' + str(l)+'\n')
+            elif l != tiles:
+                f.write(str(i) + ' --- ' + str(l)+'\n')
+        f.write(str(zeros) + " ts missing all tiles found out of " + str(len(dti)) + " total ts\n")
+        f.write(str(tiles) +  " expected tiles for each ts\n")
+
+def print_check_db(df_input, print_zero = False):
+    zeros = 0
+    tiles = len(df_input[["TileX","TileY"]].drop_duplicates())
+    dti = pd.date_range(start=df_input.Timestamp.min(), end = df_input.Timestamp.max(),freq='15min')
+    print('TIMESTAMP -------------- TILES')
+    for i in dti:
+        l=len(df_input.loc[df_input.Timestamp==i])
+        if l == 0:
+            zeros += 1
+            if print_zero:
+                print(i, ' --- ', l)
+        elif l != tiles:
+            print(i, ' --- ', l)
+    print(zeros , " ts missing all tiles found out of ", len(dti), " total ts")
+    print(tiles, " expected tiles for each ts")
+
+def count_db_tiles(df_input):
+    dti = pd.date_range(start=df_input.Timestamp.min(), end = df_input.Timestamp.max(),freq='15min')
+    tile_list = []
+    time_list = []
+    for i in dti:
+        l=len(df_input.loc[df_input.Timestamp==i])
+        tile_list.append(l)
+        time_list.append(i)
+    return pd.DataFrame({"Tiles" : tile_list, "Timestamp" : time_list}) # df_tiles
+
+def plot_db_tiles(df_tiles,day_ticks=10, fmt = '.m'):
+    fig, ax = plt.subplots()
+    ax.plot(df_tiles.Timestamp, df_tiles.Tiles, fmt)
+    ax.set_xticks(df_tiles.Timestamp[::96*day_ticks])
+    fig.autofmt_xdate()
+    plt.show()
+
+def fix_db_tiles(df_input, df_tiles):
+    df = df_input.copy()
+    tiles = df[["TileX","TileY"]].drop_duplicates()
+    problems = df_tiles.loc[df_tiles.Tiles > len(tiles)].Timestamp
+    for p in problems:
+        df_p = df.loc[df.Timestamp==p]
+        for t in tiles.values:
+            people = df_p.loc[(df_p.TileX==t[0]) & (df_p.TileY==t[1])].P.values
+            if len(people) != 1:
+                count = people[people!=0].mean()
+                df.loc[(df_input["Timestamp"]==p) & (df_input.TileX==t[0]) & (df_input.TileY==t[1]), "P"] = count
+    return df.drop_duplicates()
+
 
 version='1.0.0'
 print("[Query-MariaDB] QueryMariadb v" + version)
@@ -39,15 +104,14 @@ toi_dict = {'0': [139956, 93800], '1': [139962, 93798], '2': [139964, 93808], '3
 with open(args.cfg) as f:
   config = json.load(f)
 
-query_string = '\n'.join([
+query = '\n'.join([
   'SELECT TileX, TileY, P, Timestamp FROM cells',
   'WHERE(',
   *['(TileX = {} AND TileY = {}) {}'.format(v[0], v[1], 'OR' if i != len(toi_dict) - 1 else '') for i,v in enumerate(toi_dict.values())],
-  ')',
+  ') AND Timestamp >= \'2019-12-15\'',  # starting date set
   ';'
 ])
 
-query = query_string
 
 try:
   db = mysql.connector.connect(
@@ -65,6 +129,14 @@ try:
 
   df = pd.read_sql(query, con=db)
   df = df.sort_values(by =['TileX', 'Timestamp'] , ascending=True)
+
+  # df = df.drop_duplicates()
+  # df = fix_db_tiles(df, count_db_tiles(df))
+
+  # here = tz.tzlocal()          ## SLOWER, gets current TZ
+  # here = 'Europe/Rome'       ## FASTER, but only for Italy TZ
+  # df.Timestamp = df.Timestamp.dt.tz_localize('UTC').dt.tz_convert(here).dt.tz_localize(None) # convert timestamp to local tz
+
   df.to_csv('toi_P.csv', index=None, sep=';')
   tquery = datetime.now() - tquery
   print('[Query-MariaDB] Query for "{}" took {}'.format(query, tquery))

@@ -56,7 +56,7 @@ def train_model(dict_matrix):
 
 
 def read_input(file_name):
-  df_input  = pd.read_csv(input_file, sep=';')
+  df_input  = pd.read_csv(file_name, sep=';')
   df_datehour = pd.DataFrame(df_input.Timestamp.str.split(' ',1).tolist(),
                                      columns = ['Date','Hour'])
   df_input = pd.concat([df_input,df_datehour], axis=1)

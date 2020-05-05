@@ -130,8 +130,8 @@ try:
   df = pd.read_sql(query, con=db)
   df = df.sort_values(by =['TileX', 'Timestamp'] , ascending=True)
 
-  # df = df.drop_duplicates()
-  # df = fix_db_tiles(df, count_db_tiles(df))
+  df = df.drop_duplicates()
+  df = fix_db_tiles(df, count_db_tiles(df))
 
   # here = tz.tzlocal()          ## SLOWER, gets current TZ
   # here = 'Europe/Rome'       ## FASTER, but only for Italy TZ

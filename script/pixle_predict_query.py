@@ -22,7 +22,7 @@ def make_prediction(df_input, weight_file):
   df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
   df_hour_now = df_weights[df_weights.Hour_in == tag_hour_now]
 
-  prediction_default = 50
+  prediction_default = -1
 
   column_list = ['X','Y','Hour_in','Hour_out','P']
   df_output = pd.DataFrame(columns=column_list)
@@ -64,6 +64,7 @@ def make_prediction(df_input, weight_file):
       columns = column_list
     ))
     df_output = df_output.astype({ 'X' : 'int', 'Y' : 'int'})
+    df_output = df_output.loc[df_output.P != -1] # removes defaulted predictions from output df. comment this line to have all tiles with -1 on defaulted predictions
 
   return df_output
 
@@ -71,11 +72,11 @@ def get_data(schedule):
   timetag = schedule['date'] + '_' + schedule['time']
   try:
       db = mysql.connector.connect(
-        host=cred['host'],
-        database=cred['database'],
-        user=cred['user'],
-        passwd=cred['passwd'],
-        port = cred['port']
+        host=conf['cred_host'],
+        database=conf['cred_database'],
+        user=conf['cred_user'],
+        passwd=conf['cred_passwd'],
+        port = conf['cred_port']
       )
 
       tquery = datetime.now()
@@ -88,10 +89,9 @@ def get_data(schedule):
 
   df = df.rename(columns={'TileX':'X','TileY':'Y','P':schedule['utctime']})
   print('[pixle-pred] Tile data {}/{} ({} %)'.format(df.shape[0], len(toi_list), (100 * df.shape[0]) // len(toi_list)))
-  if df.shape[0] == 0:
+  if df.shape[0] != len(toi_list): # reruns script if missing any tiles
     print('[pixle-pred] EMPTY tile data')
     os.remove(lastrecname)
-    exit(1)
 
   return df
 
@@ -129,13 +129,8 @@ args = parser.parse_args()
 if args.config != '':
   with open(args.config) as f:
     conf = json.load(f)
-
-# credentials
-if 'credentials' in conf:
-  cred = conf['credentials']
 else:
-  print('[pixle-pred] Missing credentials in config JSON', flush=True)
-  exit(1)
+    conf = os.environ
 
 # work dir
 if 'workdir' in conf:
@@ -152,12 +147,6 @@ if 'hour_delay' in conf:
   hour_delay = conf['hour_delay']
 else:
   hour_delay = 0
-
-# prediction dt
-if 'pred_dt_min' in conf:
-  pred_dt = conf['pred_dt_min']
-else:
-  pred_dt = 0
 
 # weight file
 if 'weight_file' in conf:

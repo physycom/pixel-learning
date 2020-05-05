@@ -72,11 +72,11 @@ def get_data(schedule):
   timetag = schedule['date'] + '_' + schedule['time']
   try:
       db = mysql.connector.connect(
-        host=conf['cred_host'],
-        database=conf['cred_database'],
-        user=conf['cred_user'],
-        passwd=conf['cred_passwd'],
-        port = conf['cred_port']
+        host=cred_host,
+        database=cred_database,
+        user=cred_user,
+        passwd=cred_passwd,
+        port=cred_port
       )
 
       tquery = datetime.now()
@@ -131,6 +131,33 @@ if args.config != '':
     conf = json.load(f)
 else:
     conf = os.environ
+
+# credentials
+if 'cred_host' in conf:
+  cred_host = conf['cred_host']
+else:
+  print('[pixle-pred] Missing credentials host')
+  exit(1)
+if 'cred_port' in conf:
+  cred_port = conf['cred_port']
+else:
+  print('[pixle-pred] Missing credentials port')
+  exit(1)
+if 'cred_user' in conf:
+  cred_user = conf['cred_user']
+else:
+  print('[pixle-pred] Missing credentials user')
+  exit(1)
+if 'cred_passwd' in conf:
+  cred_passwd = conf['cred_passwd']
+else:
+  print('[pixle-pred] Missing credentials password')
+  exit(1)
+if 'cred_database' in conf:
+  cred_database = conf['cred_database']
+else:
+  print('[pixle-pred] Missing credentials database name')
+  exit(1)
 
 # work dir
 if 'workdir' in conf:

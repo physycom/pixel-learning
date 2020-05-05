@@ -51,7 +51,7 @@ def make_prediction(df_input, weight_file):
     else:
         prediction = round((np.array(df_mod_in[tag_hour_now])*np.array(df_model.Slope)).sum()+intercept)
 
-    if prediction < 0:
+    if prediction < 0 and prediction != -1:
       print('[pixle-pred] WARNING: Negative prediction')
       if df_input[df_input.Tile == tile_out].shape[0] == 0:
         print('[pixle-pred] Setting to default {}'.format(tile_out))

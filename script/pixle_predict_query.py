@@ -90,8 +90,12 @@ def get_data(schedule):
   df = df.rename(columns={'TileX':'X','TileY':'Y','P':schedule['utctime']})
   print('[pixle-pred] Tile data {}/{} ({} %)'.format(df.shape[0], len(toi_list), (100 * df.shape[0]) // len(toi_list)))
   if df.shape[0] != len(toi_list): # reruns script if missing any tiles
+    print('[pixle-pred] Some empty tile data, continuing anyway')
+    os.remove(lastrecname)
+  if df.shape[0] == 0: # quits if no tile data is found at all
     print('[pixle-pred] EMPTY tile data')
     os.remove(lastrecname)
+    exit(1)
 
   return df
 

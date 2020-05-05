@@ -1,0 +1,180 @@
+#! /usr/bin/env python3
+# Usage: python pixel_train_2_learning.py toi_P.csv output_dir/
+# toi_P is the database input obtained from the query. output_dir is the folder to store the json output in.
+
+import pandas as pd
+import numpy as np
+import sys
+import os
+import random
+from datetime import datetime
+import multiprocessing as mp
+from timeit import default_timer as timer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+
+my_seed = 42
+random.seed(my_seed)
+np.random.seed(my_seed)
+
+def train_model(dict_matrix):
+  name_model = list(dict_matrix.keys())[0]
+  df = dict_matrix[name_model]
+  df = df.sample(frac=1).reset_index(drop=True)
+
+  item = name_model.split('/')[-1]
+  item = item.split('_')
+  time_in = item[0]
+  time_out = item[1]
+
+  column_name =df.columns.tolist()
+  y_name = column_name[-1]
+  X_name = column_name[:-1]
+
+  X = df[X_name]
+  y = df[y_name]
+  X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+  test = SelectKBest(f_regression, k=7)
+  fit_model = test.fit(X_train, y_train)
+  X_train_new = fit_model.transform(X_train)
+  X_test_new = fit_model.transform(X_test)
+  X_name = df.columns[fit_model.get_support(indices=True)].tolist()
+  ####################### LINEAR REGRESSION ############################
+  model = LinearRegression()
+  model.fit(X_train_new,y_train)
+  r_sq = model.score(X_test_new,y_test)
+  df_work = pd.DataFrame([[time_in, time_out, y_name, X_name, model.intercept_, model.coef_, r_sq]],
+                    columns=['Hour_in','Hour_out', 'Tile_out', 'Tile_in', 'Intercept', 'Slope', 'Score'])
+  df_work.to_json(name_model +'.json',orient='records')
+
+def read_input(file_name):
+  df_input  = pd.read_csv(file_name, sep=';')
+  df_datehour = pd.DataFrame(df_input.Timestamp.str.split(' ',1).tolist(),
+                                     columns = ['Date','Hour'])
+  df_input = pd.concat([df_input,df_datehour], axis=1)
+  df_hour = pd.DataFrame(df_input.Hour.str.split(':',2).tolist(), columns=['Hour', 'Min', 'Sec'])
+  df_input['IdHour']=df_hour['Hour']+df_hour['Min']
+  return df_input
+
+def rearrange_input(df_time):
+  tag = df_time.IdHour.iloc[0]
+  group_df  =  df_time.groupby(['TileX','TileY'])
+  tile_list = list(group_df.groups.keys())
+  df_in =pd.DataFrame(columns=['Date'])
+
+  for i in tile_list:
+    df_tile = group_df.get_group(i)
+    df_tile = df_tile.drop(['TileX', 'TileY', 'IdHour','Timestamp','Hour'], axis=1)
+    tile_name = str(i[0])+'-'+str(i[1])
+    df_tile = df_tile.rename(columns={'P':tile_name}, inplace=False)
+    df_in = pd.merge(df_in,df_tile, how='outer', on=['Date'])
+  dictw = {}
+  dictw[tag] = df_in
+  return dictw
+
+def make_matrix_item(dict_dftime):
+  time_list = list(dict_dftime.keys())
+  input_key = time_list[0]
+  output_key = time_list[1:]
+  name_tile = dict_dftime[input_key].columns.tolist()
+  name_tile.remove('Date')
+  list_dict =[]
+  for out_k in output_key:
+    for j in name_tile:
+      out_tile =['Date'] + [j]
+      in_tile = ['Date'] + name_tile.copy()
+      in_tile.remove(j)
+      dfw_in  = dict_dftime[input_key][in_tile]
+      dfw_out = dict_dftime[out_k][out_tile]
+      df_matrix = pd.merge(dfw_in, dfw_out, how='outer', on=['Date'])
+      df_matrix = df_matrix.dropna().drop(['Date'], axis=1)
+      dict_matrix={}
+      dict_matrix['{:>04}_{:>04}_{}'.format(input_key, out_k, j)] = df_matrix
+      list_dict.append(dict_matrix)
+  return list_dict
+
+def normalize_before_date(df, x_date, norm):
+    if norm==1:
+        return df
+    else:
+        x_dt = datetime.strptime(x_date, '%Y-%m-%d %H:%M:%S')
+        dates = pd.to_datetime(df.Timestamp, format = '%Y-%m-%d %H:%M:%S')
+        df.P = df.P.astype('float32')
+        df.loc[dates.loc[dates<x_dt].index, 'P'] *= norm
+        df.P = df.P.astype('int64')
+        return df
+
+if __name__ ==  '__main__':
+  # parse command line
+  if len(sys.argv) < 3:
+    print("Usage :", sys.argv[0], "path/to/csv/input.csv", "output/dir")
+    sys.exit(1)
+  input_file = sys.argv[1]
+  wdir = sys.argv[2]
+  print('[Pixel-2-Learning] Pre-processing : {}'.format(input_file))
+
+  # setup folder
+  try:
+    os.makedirs(wdir)
+  except FileExistsError:
+    pass
+
+  tic = timer()
+  first_tic = tic
+  df_input = read_input(input_file)
+
+  # NORMALIZATION VALUES
+  start_date = '2020-02-19 10:00:00' # date to start normalizing from. if any other format change the normalize function to match
+  norm_factor = 3.125                # normalization factor
+  df_input = normalize_before_date(df_input, start_date, norm_factor)
+
+  time_group = df_input.groupby(['IdHour'])
+  time_list = list(time_group.groups.keys())
+
+  tac = timer()
+  print('[Pixel-2-Learning] Pre-processing time: {}'.format(tac-tic), flush=True)
+  number_prediction = 4
+
+  parallel = False
+
+  ##### Parallel #############
+  if parallel:
+    print('[Pixel-2-Learning] MODE Parallel @ {} cpus'.format(mp.cpu_count()), flush=True)
+    tic = timer()
+    pool = mp.Pool(mp.cpu_count())
+    result = pool.map(make_matrix_item, [{k: v for d in pool.map(rearrange_input, [time_group.get_group(i) for i in time_list[j:j+min(number_prediction,len(time_list)-j)+1]]) for k, v in d.items()} for j in np.arange(0,len(time_list))])
+    tac = timer()
+    print('[Pixel-2-Learning] Rearrange matrix: {}'.format(tac - tic), flush=True)
+    tic = timer()
+    for m in result:
+      for i in m:
+        old_name = list(i.keys())[0]
+        new_name = wdir + '/' + old_name
+        i[ new_name ] = i.pop(old_name)
+    for m in result:
+      pool.map(train_model, m)
+    pool.close()
+
+  ##### Serial #############
+  if not parallel:
+    tic = timer()
+    for j in np.arange(0,len(time_list[:-number_prediction])):
+      timew = time_list[j:(j+min(number_prediction, len(time_list)-j)+1)]
+      dict_dftime = {}
+      for i in timew:
+        df_time = time_group.get_group(i)
+        dict_dftime.update(rearrange_input(df_time))
+      list_dict_matrix = make_matrix_item(dict_dftime)
+      for i in list_dict_matrix:
+        old_name = list(i.keys())[0]
+        new_name = wdir + '/' + old_name
+        i[ new_name ] = i.pop(old_name)
+        train_model(i)
+
+  tac = timer()
+  print('[Pixel-2-Learning] Make item of matrix: {}'.format(tac - tic), flush=True)
+  print('[Pixel-2-Learning] Total time: {}'.format(tac-first_tic), flush=True)
+

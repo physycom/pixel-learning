@@ -123,7 +123,7 @@ toi_dict[594] = {'0': [139956, 93800], '1': [139962, 93798], '2': [139964, 93808
 #### parse config ########
 ##########################
 parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--config', help='configuration JSON')
+parser.add_argument('-c', '--config', help='configuration JSON',default='')
 args = parser.parse_args()
 
 if args.config != '':
@@ -144,7 +144,7 @@ except FileExistsError:
 
 # hour delay
 if 'hour_delay' in conf:
-  hour_delay = conf['hour_delay']
+  hour_delay = int(conf['hour_delay'])
 else:
   hour_delay = 0
 
@@ -164,7 +164,7 @@ else:
 
 # query toi settings
 if 'tile_number' in conf:
-    tile_n = conf['tile_number']
+    tile_n = int(conf['tile_number'])
     if tile_n in toi_dict:
         toi_list = toi_dict[tile_n]
     else:

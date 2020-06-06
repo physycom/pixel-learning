@@ -69,7 +69,6 @@ def make_prediction(df_input, weight_file):
   return df_output
 
 def get_data(schedule):
-  timetag = schedule['date'] + '_' + schedule['time']
   try:
       db = mysql.connector.connect(
         host=cred_host,

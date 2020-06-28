@@ -28,13 +28,29 @@ class pixel_predictor:
 
     self.conf = {}
     try:
+      # query db params:
       self.conf['host'] = config['host']
       self.conf['port'] = config['port']
       self.conf['database'] = config['database']
       self.conf['user'] = config['user']
       self.conf['password'] = config['password']
+      # rsync params:
+      self.conf['server_user'] = config['server_user']
+      self.conf['server_host'] = config['server_host']
+      self.conf['server_port'] = config['server_port']
+      self.conf['server_login_key'] = config['server_login_key']
+      self.conf['remote_sync_path'] = config['remote_sync_path']
     except Exception as e:
       raise Exception('[pixel-pred] config file load failed : {}'.format(e)) from e
+
+    if 'output_dir' in config:
+      self.wdir = config['output_dir']
+      try:
+        os.makedirs(self.wdir)
+      except FileExistsError:
+        pass
+    else:
+      self.wdir = root_folder
 
     if 'tile_number' in config:
       self.tile_n = int(config['tile_number'])
@@ -151,13 +167,13 @@ class pixel_predictor:
     lprint('Data prediction for {} took {}'.format(self.ints, tpred), logger=self.logger)
     return df_output
 
-  def dump_data(self, df_tosend, wdir='..'):
+  def dump_data(self, df_tosend):
     df_maptile = pd.read_csv(self.geo_tile_file, sep=';')
     df_maptile = df_maptile.astype({ 'X' : 'int', 'Y' : 'int'})
     df_tosend = df_tosend.astype({ 'P' : 'int' })
     df_tosend = df_tosend.merge(df_maptile, how='left', on=['X', 'Y'])
     input_date = datetime.strptime(self.ints, self.date_format).replace(tzinfo=tz.gettz('UTC')).astimezone(self.HERE)
-    out_path = os.path.join(wdir,input_date.strftime('%y%m%d_%H%M')+'.csv')
+    out_path = os.path.join(self.wdir,input_date.strftime('%y%m%d_%H%M')+'.csv')
     df_tosend['Datetime'] = [ datetime.strptime(input_date.strftime('%y%m%d')+'-'+hour_out, '%y%m%d-%H%M') for hour_out in df_tosend.Hour_out ]
     df_tosend.Datetime = df_tosend.Datetime.dt.tz_localize('UTC').dt.tz_convert(self.HERE).dt.tz_localize(None) # convert ts to local tz
     df_tosend[['Datetime','X','Y','latMin','latMax','lonMin','lonMax','P']].to_csv(

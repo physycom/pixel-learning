@@ -122,6 +122,9 @@ class pixel_predictor:
     df_weights.Hour_in = ['{:>04}'.format(i) for i in df_weights.Hour_in]
     df_weights.Hour_out = ['{:>04}'.format(i) for i in df_weights.Hour_out]
     df_hour_now = df_weights[df_weights.Hour_in == tag_hour_now]
+    if len(df_hour_now) == 0:
+      lprint('ERROR No weights for this timestamp', logger=self.logger)
+      raise Exception('[pixel-pred] EMPTY weights data')
     prediction_default = -1
     column_list = ['X','Y','Hour_in','Hour_out','P']
     df_output = pd.DataFrame(columns=column_list)
@@ -172,8 +175,9 @@ class pixel_predictor:
     df_maptile = df_maptile.astype({ 'X' : 'int', 'Y' : 'int'})
     df_tosend = df_tosend.astype({ 'P' : 'int' })
     df_tosend = df_tosend.merge(df_maptile, how='left', on=['X', 'Y'])
-    input_date = datetime.strptime(self.ints, self.date_format).replace(tzinfo=tz.gettz('UTC')).astimezone(self.HERE)
-    out_path = os.path.join(self.wdir,input_date.strftime('%y%m%d_%H%M')+'.csv')
+    input_date = datetime.strptime(self.ints, self.date_format)
+    input_date_local = input_date.replace(tzinfo=tz.gettz('UTC')).astimezone(self.HERE)
+    out_path = os.path.join(self.wdir,input_date_local.strftime('%y%m%d_%H%M')+'.csv')
     df_tosend['Datetime'] = [ datetime.strptime(input_date.strftime('%y%m%d')+'-'+hour_out, '%y%m%d-%H%M') for hour_out in df_tosend.Hour_out ]
     df_tosend.Datetime = df_tosend.Datetime.dt.tz_localize('UTC').dt.tz_convert(self.HERE).dt.tz_localize(None) # convert ts to local tz
     df_tosend[['Datetime','X','Y','latMin','latMax','lonMin','lonMax','P']].to_csv(

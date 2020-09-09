@@ -9,7 +9,7 @@ import numpy as np
 import sys
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 import multiprocessing as mp
 from timeit import default_timer as timer
 from sklearn.model_selection import train_test_split
@@ -115,11 +115,13 @@ def normalize_before_date(df, x_date, norm):
 
 if __name__ ==  '__main__':
   # parse command line
-  if len(sys.argv) < 3:
-    print("Usage :", sys.argv[0], "path/to/csv/input", "output/dir")
+  if len(sys.argv) < 4:
+    print("Usage :", sys.argv[0], "path/to/csv/input", "output/dir", "number of prediction dts")
     sys.exit(1)
   input_file = sys.argv[1]
   wdir = sys.argv[2]
+  number_prediction = int(sys.argv[3])
+  min_dt = 15 # minutes between timestamps
   print('[PL-2-netle] Pre-processing : {}'.format(input_file))
 
   # setup folder
@@ -135,13 +137,65 @@ if __name__ ==  '__main__':
   x_date = '2020-02-19 10:00:00' # if any other format change the normalize function to match
   norm_factor = 3.125 # need exact value
   df_input = normalize_before_date(df_input, x_date, norm_factor)
+  df_input = df_input.drop_duplicates()
+  df_input = df_input.sort_values(by='Timestamp',ascending=True).reset_index(drop=True)
 
   time_group = df_input.groupby(['IdHour'])
   time_list = list(time_group.groups.keys())
 
   tac = timer()
   print('[PL-2-netle] Pre-processing time: {}'.format(tac-tic), flush=True)
-  number_prediction = 4
+
+  # """
+
+  tic = timer()
+  time_list = list(np.unique(df_input['IdHour']))
+  df_input['XY'] = df_input['TileX'].astype(str) + '-' + df_input['TileY'].astype(str)
+  df_input = df_input.drop(['TileX','TileY','Hour','Date'], axis=1)
+  df_input = df_input[['Timestamp','P','IdHour','XY']]
+  df_input['Timestamp'] = pd.to_datetime(df_input['Timestamp'], format = '%Y-%m-%d %H:%M:%S')
+
+  dict_ts = {}
+  for ts_in in time_list:
+      dict_dftime = {}
+      ts_slice_in = df_input.loc[df_input['IdHour'] == ts_in]
+
+      group_tiles_in  =  ts_slice_in.groupby(['XY'])
+      df_in = pd.DataFrame(columns=['Timestamp'])
+
+      for t_in in list(group_tiles_in.groups.keys()):
+        df_tile_in = group_tiles_in.get_group(t_in)
+        df_tile_in = df_tile_in.drop(['XY', 'IdHour'], axis=1).rename(columns={'P': t_in}, inplace=False)
+        df_in = pd.merge(df_in,df_tile_in, how='outer', on=['Timestamp'])
+
+      dict_ts[ts_in] = df_in
+
+
+  for ts_in in time_list:
+    list_dict_matrix = []
+    df_in = dict_ts[ts_in]
+
+    for i in range(number_prediction):
+      dt = timedelta(minutes=min_dt * (i+1))
+      ts_out = (datetime.strptime(ts_in,'%H%M') + dt).strftime('%H%M')
+      df_out = dict_ts[ts_out].copy()
+      df_out['Timestamp'] = df_out['Timestamp'] - dt
+
+      tile_list = df_out.columns.tolist()
+      tile_list.remove('Timestamp')
+      for t_out in tile_list:
+        df1 = df_in.drop(t_out,axis=1)
+        df2 = df_out[['Timestamp',t_out]]
+        df = pd.merge(df1,df2,how='outer',on=['Timestamp'])
+        df = df.dropna().drop(['Timestamp'], axis=1)
+        list_dict_matrix.append({f'{ts_in}_{ts_out}_{t_out}' : df})
+
+    for k in list_dict_matrix:
+        old_name = list(k.keys())[0]
+        new_name = wdir + '/' + old_name
+        k[new_name] = k.pop(old_name)
+        train_model(k)
+  """
 
   parallel = False
 
@@ -178,7 +232,7 @@ if __name__ ==  '__main__':
         new_name = wdir + '/' + old_name
         i[ new_name ] = i.pop(old_name)
         train_model(i)
-
+# """
   tac = timer()
   print('[PL-2-networklearning] Make item of matrix: {}'.format(tac - tic), flush=True)
   print('Total time: {}'.format(tac-first_tic), flush=True)

@@ -300,3 +300,44 @@ plt.ylabel('{} people'.format(selector))
 plt.xlabel('Hours')
 plt.title('Daily {} of top {} tiles plot'.format(selector, N))
 plt.show()
+
+#%%
+# query e grafico per il totale sull'isola e media di giorno / notte
+day_query = '\n'.join([
+            'SELECT',
+            'c.Timestamp AS time,',
+            'SUM(c.P) AS tot',
+            'FROM',
+            'cells c ',
+            'INNER JOIN',
+            'tiles_clusters_d t',
+            'ON',
+            'c.TileX = t.TileX AND c.TileY = t.TileY',
+            'WHERE',
+            't.IDcluster = 1 ',#'IN (1,2,4)',# per fare il centro, 1 solo per san marco
+            'AND',
+            'c.Timestamp >= "2020-01-01 00:00:00"',
+            'AND',
+            'c.Timestamp <= "2020-07-01 00:00:00"',
+            'GROUP BY ',
+            'c.Timestamp',
+            ';'
+            ])
+
+try:
+    dfd = pd.read_sql(day_query, con=dbc(cfg))
+except Exception as e:
+  print('[Pixel-0-Tile Search] Error : {}'.format(e))
+
+dfd = dfd.sort_values(by=['time'],ascending=True).reset_index(drop=True)
+
+tsindex = pd.DatetimeIndex(dfd.time)
+night = dfd.loc[(tsindex.hour < 7) | (tsindex.hour > 19)]
+day = dfd.loc[(tsindex.hour < 19) & (tsindex.hour > 7)]
+print(night.tot.mean())
+print(day.tot.mean())
+
+plt.plot(dfd['time'], dfd['tot'], '-or')
+plt.ylabel('Tot people')
+plt.xlabel('Ts')
+plt.show()

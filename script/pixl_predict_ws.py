@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import tz
 import mysql.connector
 
@@ -13,7 +13,7 @@ def lprint(s, logger=None):
     print(head+s, flush=True)
 
 class pixel_predictor:
-  def __init__(self, config, date_format='%Y-%m-%d %H:%M:%S', logger=None, root_folder=os.path.join(os.environ['WORKSPACE'], 'pixel-ws')):
+  def __init__(self, config, date_format='%Y-%m-%d %H:%M:%S', logger=None, root_folder=os.path.join(os.environ['WORKSPACE'], 'pixle-ws')):
     self.logger = logger
     self.date_format = date_format
     self.HERE = tz.tzlocal()
@@ -179,6 +179,8 @@ class pixel_predictor:
     input_date_local = input_date.replace(tzinfo=tz.gettz('UTC')).astimezone(self.HERE)
     out_path = os.path.join(self.wdir,input_date_local.strftime('%y%m%d_%H%M')+'.csv')
     df_tosend['Datetime'] = [ datetime.strptime(input_date.strftime('%y%m%d')+'-'+hour_out, '%y%m%d-%H%M') for hour_out in df_tosend.Hour_out ]
+    df_tosend.loc[df_tosend['Datetime'] < input_date, 'Datetime'] += timedelta(days=1)
+    df_tosend = df_tosend.sort_values(by='Datetime',ascending=True)
     df_tosend.Datetime = df_tosend.Datetime.dt.tz_localize('UTC').dt.tz_convert(self.HERE).dt.tz_localize(None) # convert ts to local tz
     df_tosend[['Datetime','X','Y','latMin','latMax','lonMin','lonMax','P']].to_csv(
       out_path,
@@ -194,13 +196,13 @@ class pixel_predictor:
 if __name__ == "__main__":
   import json
   try:
-    conf_file = os.path.join(os.environ['WORKSPACE'], 'pixel-learning', 'cfg', 'settings.json')
+    conf_file = os.path.join(os.environ['WORKSPACE'], 'pixle-ws', 'cfg', 'settings.json')
     with open(conf_file) as f:
       conf = json.load(f)
   except Exception as e:
     raise Exception('[pixel-pred] settings file loading error : {}'.format(e)) from e
 
   tester = pixel_predictor(conf)
-  ts_ex = "2020-02-16 00:15:00"
+  ts_ex = "2020-02-16 22:30:00"
   df_out = tester.make_prediction(ts_ex)
   tester.dump_data(df_out)
